@@ -1,0 +1,668 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Mart Management & Billing System</title>
+    <style>
+        :root {
+            --primary: #2c3e50;
+            --secondary: #27ae60;
+            --danger: #e74c3c;
+            --light: #ecf0f1;
+            --dark: #2c3e50;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            margin: 0;
+            padding: 0;
+            background-color: #f4f7f6;
+            color: #333;
+        }
+
+        /* Navigation Bar */
+        nav {
+            background-color: var(--primary);
+            color: white;
+            padding: 15px 20px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        nav h1 { margin: 0; font-size: 22px; }
+
+        .nav-tabs {
+            display: flex;
+            gap: 10px;
+        }
+
+        .tab-btn {
+            background: transparent;
+            border: 1px solid white;
+            color: white;
+            padding: 8px 16px;
+            border-radius: 4px;
+            cursor: pointer;
+            transition: 0.3s;
+        }
+
+        .tab-btn.active, .tab-btn:hover {
+            background: white;
+            color: var(--primary);
+        }
+
+        /* Container */
+        .container {
+            padding: 20px;
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+
+        .tab-content {
+            display: none;
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+        }
+
+        .tab-content.active { display: block; }
+
+        /* Forms and Inputs */
+        .form-group {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 20px;
+            flex-wrap: wrap;
+        }
+
+        input, select, button {
+            padding: 10px;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+            font-size: 14px;
+        }
+
+        input { flex: 1; min-width: 150px; }
+
+        .btn {
+            background-color: var(--secondary);
+            color: white;
+            border: none;
+            cursor: pointer;
+            font-weight: bold;
+        }
+
+        .btn:hover { opacity: 0.9; }
+        .btn-danger { background-color: var(--danger); }
+        .btn-edit { background-color: #f39c12; color: white; }
+
+        /* Tables */
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 10px;
+        }
+
+        th, td {
+            border: 1px solid #ddd;
+            padding: 12px;
+            text-align: left;
+        }
+
+        th { background-color: var(--light); }
+
+        /* Dashboard Cards */
+        .dashboard-cards {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 20px;
+            margin-bottom: 20px;
+        }
+
+        .card {
+            background: #f8f9fa;
+            border-left: 5px solid var(--secondary);
+            padding: 15px;
+            border-radius: 4px;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+        }
+
+        .card.expense-card { border-left-color: var(--danger); }
+        .card.profit-card { border-left-color: #2980b9; }
+
+        .card h3 { margin: 0 0 10px 0; font-size: 14px; color: #666; }
+        .card p { margin: 0; font-size: 24px; font-weight: bold; }
+
+        /* Receipt Print Styling (Mart Bill Look) */
+        #receipt-area {
+            display: none;
+        }
+
+        @media print {
+            body * { visibility: hidden; }
+            #receipt-area, #receipt-area * { visibility: visible; }
+            #receipt-area {
+                display: block !important;
+                position: absolute;
+                left: 0;
+                top: 0;
+                width: 80mm; /* Standard POS thermal paper width */
+                padding: 10px;
+                font-family: 'Courier New', Courier, monospace;
+                font-size: 12px;
+                color: #000;
+            }
+            .no-print { display: none !important; }
+        }
+
+        .receipt-header, .receipt-footer { text-align: center; }
+        .receipt-header h2 { margin: 0; font-size: 18px; }
+        .receipt-divider { border-top: 1px dashed #000; margin: 8px 0; }
+        .receipt-table { width: 100%; border-collapse: collapse; }
+        .receipt-table th, .receipt-table td { border: none; padding: 3px 0; font-size: 12px; }
+        .receipt-row { display: flex; justify-content: space-between; }
+    </style>
+</head>
+<body>
+
+    <nav class="no-print">
+        <h1>SuperMart Management & POS</h1>
+        <div class="nav-tabs">
+            <button class="tab-btn active" onclick="switchTab('billing')">Billing (POS)</button>
+            <button class="tab-btn" onclick="switchTab('products')">Products</button>
+            <button class="tab-btn" onclick="switchTab('expenses')">Expenses</button>
+            <button class="tab-btn" onclick="switchTab('analytics')">Reports & Analytics</button>
+        </div>
+    </nav>
+
+    <div class="container no-print">
+
+        <!-- BILLING SECTION -->
+        <div id="billing" class="tab-content active">
+            <h2>POS Counter & Billing</h2>
+            <div class="form-group">
+                <select id="pos-product" onchange="updatePosPrice()">
+                    <option value="">Select Product</option>
+                </select>
+                <input type="number" id="pos-qty" value="1" min="1" placeholder="Qty">
+                <input type="number" id="pos-price" placeholder="Sale Price" readonly>
+                <button class="btn" onclick="addToCart()">Add to Bill</button>
+            </div>
+
+            <table id="cart-table">
+                <thead>
+                    <tr>
+                        <th>Item</th>
+                        <th>Qty</th>
+                        <th>Price</th>
+                        <th>Total</th>
+                        <th>Action</th>
+                    </tr>
+                </thead>
+                <tbody></tbody>
+            </table>
+
+            <h3 style="text-align: right; margin-top: 20px;">Grand Total: $<span id="bill-total">0.00</span></h3>
+
+            <div class="form-group" style="justify-content: flex-end;">
+                <select id="payment-mode">
+                    <option value="Cash">Cash Received</option>
+                    <option value="Credit">Credit (Unpaid/Due)</option>
+                </select>
+                <input type="number" id="cash-given" placeholder="Amount Received" oninput="calculateChange()">
+                <input type="number" id="cash-change" placeholder="Change Due" readonly>
+                <button class="btn" style="background-color: #2980b9;" onclick="generateBillAndPrint()">Checkout & Print Bill</button>
+            </div>
+        </div>
+
+        <!-- PRODUCT MANAGEMENT -->
+        <div id="products" class="tab-content">
+            <h2>Inventory & Product Management</h2>
+            <form id="product-form" class="form-group" onsubmit="saveProduct(event)">
+                <input type="hidden" id="prod-id">
+                <input type="text" id="prod-name" placeholder="Product Name" required>
+                <input type="number" id="prod-qty" placeholder="Quantity" required>
+                <input type="number" step="0.01" id="prod-buy" placeholder="Buy Price" required>
+                <input type="number" step="0.01" id="prod-sale" placeholder="Sale Price" required>
+                <button type="submit" class="btn" id="prod-btn">Add Product</button>
+            </form>
+
+            <table>
+                <thead>
+                    <tr>
+                        <th>ID</th>
+                        <th>Product Name</th>
+                        <th>Stock Qty</th>
+                        <th>Buy Price</th>
+                        <th>Sale Price</th>
+                        <th>Actions</th>
+                    </tr>
+                </thead>
+                <tbody id="product-list"></tbody>
+            </table>
+        </div>
+
+        <!-- EXPENSE MANAGEMENT -->
+        <div id="expenses" class="tab-content">
+            <h2>Expense Tracker</h2>
+            <form id="expense-form" class="form-group" onsubmit="saveExpense(event)">
+                <input type="hidden" id="exp-id">
+                <input type="text" id="exp-title" placeholder="Expense Title (e.g. Rent, Bills)" required>
+                <input type="number" step="0.01" id="exp-amount" placeholder="Amount" required>
+                <input type="date" id="exp-date" required>
+                <button type="submit" class="btn" id="exp-btn">Add Expense</button>
+            </form>
+
+            <table>
+                <thead>
+                    <tr>
+                        <th>Date</th>
+                        <th>Title</th>
+                        <th>Amount</th>
+                        <th>Actions</th>
+                    </tr>
+                </thead>
+                <tbody id="expense-list"></tbody>
+            </table>
+        </div>
+
+        <!-- REPORTS & ANALYTICS -->
+        <div id="analytics" class="tab-content">
+            <h2>Monthly & Yearly Performance</h2>
+            
+            <div class="dashboard-cards">
+                <div class="card">
+                    <h3>TOTAL SALES</h3>
+                    <p id="dash-sales">$0.00</p>
+                </div>
+                <div class="card expense-card">
+                    <h3>TOTAL EXPENSES</h3>
+                    <p id="dash-expenses">$0.00</p>
+                </div>
+                <div class="card profit-card">
+                    <h3>NET PROFIT / LOSS</h3>
+                    <p id="dash-profit">$0.00</p>
+                </div>
+            </div>
+
+            <div class="form-group">
+                <label style="align-self: center; font-weight: bold;">Filter Analytics:</label>
+                <input type="month" id="filter-month" onchange="renderAnalytics()">
+            </div>
+
+            <h3>Sales History</h3>
+            <table>
+                <thead>
+                    <tr>
+                        <th>Date & Time</th>
+                        <th>Items Count</th>
+                        <th>Total Amount</th>
+                        <th>Payment Mode</th>
+                        <th>Profit Generated</th>
+                    </tr>
+                </thead>
+                <tbody id="sales-history"></tbody>
+            </table>
+        </div>
+
+    </div>
+
+    <!-- PRINTABLE RECEIPT TEMPLATE (MART STYLE) -->
+    <div id="receipt-area">
+        <div class="receipt-header">
+            <h2>SUPERMART</h2>
+            <p>123 Main Shopping Street<br>Phone: +1 234 567 890</p>
+            <div class="receipt-divider"></div>
+            <p id="rec-datetime"></p>
+        </div>
+        <div class="receipt-divider"></div>
+        <table class="receipt-table">
+            <thead>
+                <tr>
+                    <th style="text-align: left;">Item</th>
+                    <th style="text-align: center;">Qty</th>
+                    <th style="text-align: right;">Price</th>
+                    <th style="text-align: right;">Total</th>
+                </tr>
+            </thead>
+            <tbody id="rec-items"></tbody>
+        </table>
+        <div class="receipt-divider"></div>
+        <div class="receipt-row"><span>Total Items:</span><span id="rec-qty-count">0</span></div>
+        <div class="receipt-row"><strong>GRAND TOTAL:</strong><strong id="rec-total">$0.00</strong></div>
+        <div class="receipt-row"><span>Payment Mode:</span><span id="rec-mode">Cash</span></div>
+        <div class="receipt-row"><span>Cash Paid:</span><span id="rec-paid">$0.00</span></div>
+        <div class="receipt-row"><span>Change:</span><span id="rec-change">$0.00</span></div>
+        <div class="receipt-divider"></div>
+        <div class="receipt-footer">
+            <p>Thank you for shopping with us!<br>Please come again.</p>
+        </div>
+    </div>
+
+    <script>
+        // Local Data Management
+        let products = JSON.parse(localStorage.getItem('products')) || [];
+        let expenses = JSON.parse(localStorage.getItem('expenses')) || [];
+        let sales = JSON.parse(localStorage.getItem('sales')) || [];
+        let cart = [];
+
+        // Tab Switching Logic
+        function switchTab(tabId) {
+            document.querySelectorAll('.tab-content').forEach(el => el.classList.remove('active'));
+            document.querySelectorAll('.tab-btn').forEach(el => el.classList.remove('active'));
+            document.getElementById(tabId).classList.add('active');
+            event.target.classList.add('active');
+            
+            if (tabId === 'billing') loadPosProducts();
+            if (tabId === 'analytics') renderAnalytics();
+        }
+
+        // ================= PRODUCT MANAGEMENT =================
+        function renderProducts() {
+            const list = document.getElementById('product-list');
+            list.innerHTML = '';
+            products.forEach((p, index) => {
+                list.innerHTML += `
+                    <tr>
+                        <td>${index + 1}</td>
+                        <td>${p.name}</td>
+                        <td>${p.qty}</td>
+                        <td>$${parseFloat(p.buy).toFixed(2)}</td>
+                        <td>$${parseFloat(p.sale).toFixed(2)}</td>
+                        <td>
+                            <button class="btn btn-edit" onclick="editProduct(${p.id})">Edit</button>
+                            <button class="btn btn-danger" onclick="deleteProduct(${p.id})">Delete</button>
+                        </td>
+                    </tr>
+                `;
+            });
+        }
+
+        function saveProduct(e) {
+            e.preventDefault();
+            const id = document.getElementById('prod-id').value;
+            const name = document.getElementById('prod-name').value;
+            const qty = parseInt(document.getElementById('prod-qty').value);
+            const buy = parseFloat(document.getElementById('prod-buy').value);
+            const sale = parseFloat(document.getElementById('prod-sale').value);
+
+            if (id) {
+                // Edit existing
+                const index = products.findIndex(p => p.id == id);
+                products[index] = { id: Number(id), name, qty, buy, sale };
+            } else {
+                // Add new
+                products.push({ id: Date.now(), name, qty, buy, sale });
+            }
+
+            localStorage.setItem('products', JSON.stringify(products));
+            document.getElementById('product-form').reset();
+            document.getElementById('prod-id').value = '';
+            document.getElementById('prod-btn').innerText = 'Add Product';
+            renderProducts();
+        }
+
+        function editProduct(id) {
+            const prod = products.find(p => p.id === id);
+            document.getElementById('prod-id').value = prod.id;
+            document.getElementById('prod-name').value = prod.name;
+            document.getElementById('prod-qty').value = prod.qty;
+            document.getElementById('prod-buy').value = prod.buy;
+            document.getElementById('prod-sale').value = prod.sale;
+            document.getElementById('prod-btn').innerText = 'Update Product';
+        }
+
+        function deleteProduct(id) {
+            if (confirm('Delete this product?')) {
+                products = products.filter(p => p.id !== id);
+                localStorage.setItem('products', JSON.stringify(products));
+                renderProducts();
+            }
+        }
+
+        // ================= EXPENSE MANAGEMENT =================
+        function renderExpenses() {
+            const list = document.getElementById('expense-list');
+            list.innerHTML = '';
+            expenses.forEach((e) => {
+                list.innerHTML += `
+                    <tr>
+                        <td>${e.date}</td>
+                        <td>${e.title}</td>
+                        <td>$${parseFloat(e.amount).toFixed(2)}</td>
+                        <td>
+                            <button class="btn btn-edit" onclick="editExpense(${e.id})">Edit</button>
+                            <button class="btn btn-danger" onclick="deleteExpense(${e.id})">Delete</button>
+                        </td>
+                    </tr>
+                `;
+            });
+        }
+
+        function saveExpense(e) {
+            e.preventDefault();
+            const id = document.getElementById('exp-id').value;
+            const title = document.getElementById('exp-title').value;
+            const amount = parseFloat(document.getElementById('exp-amount').value);
+            const date = document.getElementById('exp-date').value;
+
+            if (id) {
+                const index = expenses.findIndex(ex => ex.id == id);
+                expenses[index] = { id: Number(id), title, amount, date };
+            } else {
+                expenses.push({ id: Date.now(), title, amount, date });
+            }
+
+            localStorage.setItem('expenses', JSON.stringify(expenses));
+            document.getElementById('expense-form').reset();
+            document.getElementById('exp-id').value = '';
+            document.getElementById('exp-btn').innerText = 'Add Expense';
+            renderExpenses();
+        }
+
+        function editExpense(id) {
+            const exp = expenses.find(e => e.id === id);
+            document.getElementById('exp-id').value = exp.id;
+            document.getElementById('exp-title').value = exp.title;
+            document.getElementById('exp-amount').value = exp.amount;
+            document.getElementById('exp-date').value = exp.date;
+            document.getElementById('exp-btn').innerText = 'Update Expense';
+        }
+
+        function deleteExpense(id) {
+            if (confirm('Delete this expense?')) {
+                expenses = expenses.filter(e => e.id !== id);
+                localStorage.setItem('expenses', JSON.stringify(expenses));
+                renderExpenses();
+            }
+        }
+
+        // ================= POS BILLING SYSTEM =================
+        function loadPosProducts() {
+            const select = document.getElementById('pos-product');
+            select.innerHTML = '<option value="">Select Product</option>';
+            products.forEach(p => {
+                select.innerHTML += `<option value="${p.id}">${p.name} (Stock: ${p.qty})</option>`;
+            });
+        }
+
+        function updatePosPrice() {
+            const id = document.getElementById('pos-product').value;
+            const prod = products.find(p => p.id == id);
+            document.getElementById('pos-price').value = prod ? prod.sale : '';
+        }
+
+        function addToCart() {
+            const id = document.getElementById('pos-product').value;
+            const qty = parseInt(document.getElementById('pos-qty').value);
+            const prod = products.find(p => p.id == id);
+
+            if (!prod || qty <= 0) return alert('Select a valid product and quantity.');
+            if (qty > prod.qty) return alert('Not enough stock available!');
+
+            const cartIndex = cart.findIndex(c => c.id == id);
+            if (cartIndex > -1) {
+                cart[cartIndex].qty += qty;
+            } else {
+                cart.push({
+                    id: prod.id,
+                    name: prod.name,
+                    price: prod.sale,
+                    buyPrice: prod.buy,
+                    qty: qty
+                });
+            }
+
+            renderCart();
+        }
+
+        function renderCart() {
+            const tbody = document.querySelector('#cart-table tbody');
+            tbody.innerHTML = '';
+            let total = 0;
+
+            cart.forEach((item, index) => {
+                const itemTotal = item.price * item.qty;
+                total += itemTotal;
+                tbody.innerHTML += `
+                    <tr>
+                        <td>${item.name}</td>
+                        <td>${item.qty}</td>
+                        <td>$${item.price.toFixed(2)}</td>
+                        <td>$${itemTotal.toFixed(2)}</td>
+                        <td><button class="btn btn-danger" onclick="removeFromCart(${index})">X</button></td>
+                    </tr>
+                `;
+            });
+
+            document.getElementById('bill-total').innerText = total.toFixed(2);
+            calculateChange();
+        }
+
+        function removeFromCart(index) {
+            cart.splice(index, 1);
+            renderCart();
+        }
+
+        function calculateChange() {
+            const total = parseFloat(document.getElementById('bill-total').innerText);
+            const paid = parseFloat(document.getElementById('cash-given').value) || 0;
+            const change = paid - total;
+            document.getElementById('cash-change').value = change >= 0 ? change.toFixed(2) : '0.00';
+        }
+
+        function generateBillAndPrint() {
+            if (cart.length === 0) return alert('Cart is empty!');
+
+            const total = parseFloat(document.getElementById('bill-total').innerText);
+            const paid = parseFloat(document.getElementById('cash-given').value) || total;
+            const mode = document.getElementById('payment-mode').value;
+            const dateObj = new Date();
+            const dateStr = dateObj.toLocaleString();
+
+            let totalProfit = 0;
+            let totalItemsCount = 0;
+
+            // Reduce product stock & calculate net sale profit
+            cart.forEach(cItem => {
+                const prod = products.find(p => p.id === cItem.id);
+                if (prod) prod.qty -= cItem.qty;
+                totalProfit += (cItem.price - cItem.buyPrice) * cItem.qty;
+                totalItemsCount += cItem.qty;
+            });
+
+            // Save sale record
+            sales.push({
+                id: Date.now(),
+                date: dateObj.toISOString().split('T')[0],
+                datetime: dateStr,
+                itemsCount: totalItemsCount,
+                totalAmount: total,
+                profit: totalProfit,
+                mode: mode
+            });
+
+            localStorage.setItem('products', JSON.stringify(products));
+            localStorage.setItem('sales', JSON.stringify(sales));
+
+            // Populate printable bill
+            document.getElementById('rec-datetime').innerText = dateStr;
+            document.getElementById('rec-qty-count').innerText = totalItemsCount;
+            document.getElementById('rec-total').innerText = '$' + total.toFixed(2);
+            document.getElementById('rec-mode').innerText = mode;
+            document.getElementById('rec-paid').innerText = '$' + paid.toFixed(2);
+            document.getElementById('rec-change').innerText = '$' + (paid - total > 0 ? paid - total : 0).toFixed(2);
+
+            const recItems = document.getElementById('rec-items');
+            recItems.innerHTML = '';
+            cart.forEach(item => {
+                recItems.innerHTML += `
+                    <tr>
+                        <td style="text-align: left;">${item.name}</td>
+                        <td style="text-align: center;">${item.qty}</td>
+                        <td style="text-align: right;">$${item.price.toFixed(2)}</td>
+                        <td style="text-align: right;">$${(item.price * item.qty).toFixed(2)}</td>
+                    </tr>
+                `;
+            });
+
+            // Trigger Print
+            window.print();
+
+            // Clear Cart & Refresh interface
+            cart = [];
+            renderCart();
+            loadPosProducts();
+            document.getElementById('cash-given').value = '';
+            document.getElementById('cash-change').value = '';
+        }
+
+        // ================= REPORTS & ANALYTICS =================
+        function renderAnalytics() {
+            const filterMonth = document.getElementById('filter-month').value; // Format: YYYY-MM
+            let filteredSales = sales;
+            let filteredExpenses = expenses;
+
+            if (filterMonth) {
+                filteredSales = sales.filter(s => s.date.startsWith(filterMonth));
+                filteredExpenses = expenses.filter(e => e.date.startsWith(filterMonth));
+            }
+
+            const totalSales = filteredSales.reduce((sum, s) => sum + s.totalAmount, 0);
+            const totalGrossProfit = filteredSales.reduce((sum, s) => sum + s.profit, 0);
+            const totalExpenses = filteredExpenses.reduce((sum, e) => sum + parseFloat(e.amount), 0);
+            const netProfit = totalGrossProfit - totalExpenses;
+
+            document.getElementById('dash-sales').innerText = '$' + totalSales.toFixed(2);
+            document.getElementById('dash-expenses').innerText = '$' + totalExpenses.toFixed(2);
+            document.getElementById('dash-profit').innerText = '$' + netProfit.toFixed(2);
+            document.getElementById('dash-profit').style.color = netProfit >= 0 ? '#27ae60' : '#e74c3c';
+
+            // Populate Sales History
+            const historyBody = document.getElementById('sales-history');
+            historyBody.innerHTML = '';
+            filteredSales.slice().reverse().forEach(s => {
+                historyBody.innerHTML += `
+                    <tr>
+                        <td>${s.datetime}</td>
+                        <td>${s.itemsCount}</td>
+                        <td>$${s.totalAmount.toFixed(2)}</td>
+                        <td>${s.mode}</td>
+                        <td style="color: green;">+$${s.profit.toFixed(2)}</td>
+                    </tr>
+                `;
+            });
+        }
+
+        // Initialize on Load
+        window.onload = function() {
+            renderProducts();
+            renderExpenses();
+            loadPosProducts();
+        };
+    </script>
+</body>
+</html>
